@@ -1,0 +1,24 @@
+# O GitHub desliga robôs agendados de repositório público depois de 60 dias sem mudanças.
+# Uma vez por semana, este robô religa o vigia e a si mesmo (não faz commit nenhum).
+name: manter-ligado
+
+on:
+  schedule:
+    - cron: '17 12 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  religar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for robo in vigia.yml manter-ligado.yml; do
+            gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$robo/enable"
+            echo "$robo ligado"
+          done

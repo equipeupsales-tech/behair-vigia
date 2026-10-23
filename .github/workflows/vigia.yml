@@ -1,0 +1,43 @@
+# Vigia do behair: a cada 5 minutos confere https://behair.bemedical.app/api/saude e avisa no WhatsApp (Ben, do Bentus)
+# quando cai e quando volta. Uma execução vermelha aqui = behair fora do ar (o GitHub também avisa por e-mail).
+# Teste manual: Actions → vigia → Run workflow → marcar "teste".
+name: vigia
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      teste:
+        description: 'Só mandar um aviso de teste no WhatsApp'
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+
+concurrency:
+  group: vigia
+
+jobs:
+  vigiar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resultado da checagem anterior
+        id: anterior
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Ignora execuções canceladas (fila do GitHub): só "deu certo" ou "falhou" contam como estado.
+          ultima=$(gh run list -R "$GITHUB_REPOSITORY" -w vigia.yml -e schedule -s completed -L 10 --json conclusion \
+            -q '[.[] | select(.conclusion == "success" or .conclusion == "failure")][0].conclusion')
+          if [ "$ultima" = failure ]; then echo "estado=fora" >>"$GITHUB_OUTPUT"; else echo "estado=no-ar" >>"$GITHUB_OUTPUT"; fi
+      - name: Conferir o behair
+        env:
+          BENTUS_CRON_SECRET: ${{ secrets.BENTUS_CRON_SECRET }}
+          ESTADO_ANTERIOR: ${{ steps.anterior.outputs.estado }}
+          MODO: ${{ github.event_name == 'workflow_dispatch' && inputs.teste && 'teste' || '' }}
+        run: ./vigiar.sh
